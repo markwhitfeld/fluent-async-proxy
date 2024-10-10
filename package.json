@@ -1,0 +1,24 @@
+{
+  "name": "@vitest/example-test",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "build": "vite build --config vite.config.ts"
+  },
+  "devDependencies": {
+    "@vitest/ui": "latest",
+    "vite": "latest",
+    "vitest": "latest"
+  },
+  "stackblitz": {
+    "startCommand": "npm run test:ui"
+  },
+  "dependencies": {
+    "node-fetch": "^2.6.12"
+  }
+}
