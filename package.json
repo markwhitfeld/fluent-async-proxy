@@ -13,7 +13,7 @@
   "devDependencies": {
     "@vitest/ui": "latest",
     "vite": "latest",
-    "vitest": "latest"
+    "vitest": "^2.1.2"
   },
   "stackblitz": {
     "startCommand": "npm run test:ui"
