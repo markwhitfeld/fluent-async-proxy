@@ -92,6 +92,7 @@ function createAsyncProxy<T extends object>(result: Promise<T>) {
   return {
     __brand: "ResultProxy",
     get thisFunc() {
+      // return get(result, "thisFunc" as any, result);
       //rootObject.thisFunc;
       const thisRef = result; // TBD receiver || target
       const promisedFunc = withValue(thisRef, (ref) => {
@@ -149,14 +150,38 @@ function createStringPromise<T extends string>(
 export const wrapMap = new WeakMap();
 export const unWrapMap = new WeakMap();
 
+function wrapRootObject<T extends object>(rootObject: T) {
+  const wrapper = {
+    get hello() {
+      return rootObject['hello'];
+    },
+    get thisFunc() {
+      const originalFn = Reflect.get(rootObject, 'thisFunc', this);
+      return getProxiedFunc(originalFn as any);    
+    },
+    get asyncThisFunc() {
+      const originalFn = Reflect.get(rootObject, 'asyncThisFunc', this);
+      return getProxiedFunc(originalFn as any);    
+    },
+  };
+  wrapMap.set(rootObject, wrapper);
+  unWrapMap.set(wrapper, rootObject);
+  return wrapper;
+}
+
+
 export function wrap<T extends object>(value: T): Wrapped<T> {
   const existing = wrapMap.get(value);
   if (existing) {
     return existing;
   }
+  if (value && value['__brand'] === 'RootObject') {
+    return wrapRootObject(value) as Wrapped<T>;
+  }
   console.dir(value);
   throw new Error("implement general wrapper");
 }
+
 export function unWrap<T extends object>(value: Wrapped<T>): Promise<T> {
   const existing = unWrapMap.get(value);
   if (existing) {
