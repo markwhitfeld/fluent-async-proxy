@@ -6,6 +6,7 @@ import {
   PromisedFunc,
   AsyncWrapped,
 } from "./fluent-async.types";
+import { withValue } from "./withValue";
 
 export function getProxiedFunc<T extends AnyFunc>(
   originalFn: T
@@ -35,32 +36,13 @@ export function getProxiedFunc<T extends AnyFunc>(
   return proxiedFunc as unknown as WrappedFunc<T>;
 }
 
-function withValue<T, TResult>(
-  value: T,
-  callback: (val: T) => TResult
-): TResult;
-function withValue<T, TResult>(
-  value: Promise<T>,
-  callback: (val: T) => TResult
-): Promise<TResult>;
-function withValue<TValue, TResult>(
-  value: TValue,
-  callback: (val: any) => TResult
-) {
-  if (value instanceof Promise) {
-    return value.then(callback);
-  } else {
-    return callback(value);
-  }
-}
-
 function createPromisedFunc<TFunc extends AnyFunc>(
   result: Promise<TFunc>
 ): PromisedFunc<TFunc> {
   type TReturn = ReturnType<TFunc>;
   const wrappedResult = result.then((val) => wrap(val));
   function proxiedFunc() {
-    const thisRef: Promise<object> = this;
+    const thisRef = this;
     const args = arguments;
     const result2 = withValue(result, (val) => {
       // typeof originalFn === 'function'
