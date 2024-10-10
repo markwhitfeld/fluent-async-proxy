@@ -75,15 +75,15 @@ describe("tests", () => {
     const actual = wrapper.asyncThisFunc();
     expect(actual["__brand"]).toBe("ResultProxy");
   });
-  it.todo(`non awaited asyncThisFunc().hello returns PromiseWrapper`, async () => {
+  it(`non awaited asyncThisFunc().hello returns PromiseWrapper`, async () => {
     const { rootObject, wrapper } = setupTest();
     const actual = wrapper.asyncThisFunc().hello;
     expect(actual["__brand"]).toBe("ResultProxy");
   });
   it(`awaited asyncThisFunc().hello returns string`, async () => {
     const { rootObject, wrapper } = setupTest();
-    const actual = wrapper.asyncThisFunc().hello;    
-    expect(await actual).toEqual('world');
+    const actual = await wrapper.asyncThisFunc().hello;    
+    expect(actual).toEqual('world');
   });
   it(`awaited asyncThisFunc().hello should not have 'then'`, async () => {
     const { rootObject, wrapper } = setupTest();

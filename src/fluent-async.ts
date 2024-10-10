@@ -58,7 +58,9 @@ export function createFluentPromise<T>( /// TBD address this removal: extends ob
 ): FluentPromise<T> {
   // const wrappedResult = new Promise<T>((resolve, reject) => result.then((val) => resolve(wrap(val))).catch(reject));
   const wrappedResult = result.then((val) => wrap(val as object));
-  const resultProxy = createAsyncProxy(result as Promise<object>);
+  return createAsyncProxy(result as Promise<object>, wrappedResult)  as FluentPromise<T>;
+  const resultProxy = createAsyncProxy(result as Promise<object>, wrappedResult);
+  
   return Object.assign(wrappedResult, resultProxy) as FluentPromise<T>;
 }
 
@@ -66,6 +68,10 @@ export function createFluentPromise<T>( /// TBD address this removal: extends ob
 export function get<T extends object, Key extends keyof T>(target: T | Promise<T>, p: Key, receiver: any): any {  
   const result = withValue(target, (ref) => {
     const thisRef = ref; // TBD unWrap(ref);
+    if (typeof thisRef !== "object") {
+      console.log("get", p, thisRef);
+      throw new Error("not an object: " + thisRef);      
+    }
     return Reflect.get(thisRef as T, p, thisRef);
   });
   // if it is a promise then we need a proxy
@@ -84,13 +90,23 @@ export function get<T extends object, Key extends keyof T>(target: T | Promise<T
   return result;  
 }
 
-function createAsyncProxy<T extends object>(result: Promise<T>) {
+function createAsyncProxy<T extends object>(result: Promise<T>, wrappedResult: Promise<object>) {
 
-  new Proxy(result, {});
+  /*
+  new Proxy( result, {
+    get(target, p, receiver) {
+      console.log("get", p);
+      if (p=== 'then') {
+        return wrappedResult.then.bind(wrappedResult);
+      }
+      return get(target, p, receiver);
+    },
+  }) as unknown as FluentPromise<T>;
+  */
 
-
-  return {
+  const proxy = {
     __brand: "ResultProxy",
+    then: wrappedResult.then.bind(wrappedResult),
     get thisFunc() {
       // return get(result, "thisFunc" as any, result);
       //rootObject.thisFunc;
@@ -107,6 +123,7 @@ function createAsyncProxy<T extends object>(result: Promise<T>) {
       // if it is not a promise then we can return the value (wrapped if object | proxfunc if function, not if string | number | boolean)
     },
     get hello() {
+      return get(result, "hello" as any, result);
       const thisRef = result; // TBD receiver || target
       const result2 = withValue(thisRef, (ref) => {
         const target = ref; // TBD unWrap(ref);
@@ -134,6 +151,8 @@ function createAsyncProxy<T extends object>(result: Promise<T>) {
       // if it is not a promise then we can return a proxied function (for functions) or a promise (for objects)
     },
   } as unknown as AsyncWrapped<T>;
+  Object.setPrototypeOf(proxy, wrappedResult);
+  return proxy;
 }
 
 function createStringPromise<T extends string>(
@@ -171,6 +190,9 @@ function wrapRootObject<T extends object>(rootObject: T) {
 
 
 export function wrap<T extends object>(value: T): Wrapped<T> {
+  if (typeof value !== 'object') {
+    return value as Wrapped<T>;
+  }
   const existing = wrapMap.get(value);
   if (existing) {
     return existing;
@@ -179,7 +201,7 @@ export function wrap<T extends object>(value: T): Wrapped<T> {
     return wrapRootObject(value) as Wrapped<T>;
   }
   console.dir(value);
-  throw new Error("implement general wrapper");
+  throw new Error("implement general wrapper for " + value);
 }
 
 export function unWrap<T extends object>(value: Wrapped<T>): Promise<T> {
