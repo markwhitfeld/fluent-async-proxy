@@ -9,7 +9,7 @@ export type AsyncWrapped<T> = {
   [K in keyof T]: T[K] extends Promise<infer V> ? FluentPromise<V> : T[K] extends AnyFunc ? PromisedFunc<T[K]> : FluentPromise<T[K]>;
 };
 export type FluentPromise<T> = AsyncWrapped<T> & Promise<Wrapped<T>>;
-type Promised<T> = T extends Promise<infer V> ? V : T;
+export type Promised<T> = T extends Promise<infer V> ? V : T;
 export type AnyFunc = (this: unknown, ...args: unknown[]) => unknown;
 export type PromisedFunc<T extends AnyFunc> = (T extends (
   ...args: infer TArgs

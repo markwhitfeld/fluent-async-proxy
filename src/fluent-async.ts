@@ -5,57 +5,50 @@ import {
   Wrapped,
   PromisedFunc,
   AsyncWrapped,
+  Promised,
 } from "./fluent-async.types";
 import { withValue } from "./withValue";
 
+
+function createProxiedFunc<T extends AnyFunc | Promise<AnyFunc>>(
+  fn: T
+): WrappedFunc<Promised<T>> {
+  function proxiedFunc() {
+    const thisRef = this;
+    const args = arguments;
+    const result = withValue(fn, (val) => {
+      const originalFn = val;
+      return withValue(thisRef, (ref) => {
+        const target = unWrap(ref);
+        return Reflect.apply(originalFn, target, args);
+      });
+    });
+    if (result instanceof Promise) {
+      return createFluentPromise(result);
+    }   
+    return wrap(result);
+  }
+  return proxiedFunc as unknown as WrappedFunc<Promised<T>>;
+}
+
 export function getProxiedFunc<T extends AnyFunc>(
   originalFn: T
-): WrappedFunc<T> {
+): WrappedFunc<Promised<T>> {
   const existing = wrapMap.get(originalFn);
   if (existing) {
     return existing;
   }
-  function proxiedFunc() {
-    const thisRef = this;
-    const args = arguments;
-    const result2 = withValue(originalFn, (val) => {
-      // typeof originalFn === 'function'
-      const originalFn = val;
-      return withValue(thisRef, (ref) => {
-        const target = unWrap(ref);
-        const innerResult = Reflect.apply(originalFn, target, args);
-        if (innerResult instanceof Promise) {
-          return createFluentPromise(innerResult);
-        }
-        return wrap(innerResult);
-      });
-    });
-    return result2;
-  }
+  const proxiedFunc = createProxiedFunc(originalFn);
   wrapMap.set(originalFn, proxiedFunc);
-  return proxiedFunc as unknown as WrappedFunc<T>;
+  return proxiedFunc;
 }
 
 function createPromisedFunc<TFunc extends AnyFunc>(
   result: Promise<TFunc>
 ): PromisedFunc<TFunc> {
   type TReturn = ReturnType<TFunc>;
-  const wrappedResult = result.then((val) => wrap(val));
-  function proxiedFunc() {
-    const thisRef = this;
-    const args = arguments;
-    const result2 = withValue(result, (val) => {
-      // typeof originalFn === 'function'
-      const originalFn = val;
-      return withValue(thisRef, (ref) => {
-        const target = unWrap(ref);
-        const innerResult: TReturn = Reflect.apply(originalFn, target, args);
-        return innerResult;
-      });
-    });
-    // We know that this will be a promise
-    return createFluentPromise(result2);
-  }
+  const wrappedResult = result.then((val) => wrap(val));  
+  const proxiedFunc = createProxiedFunc(result);
   return Object.assign(
     proxiedFunc as unknown as PromisedFunc<TFunc>,
     wrappedResult
