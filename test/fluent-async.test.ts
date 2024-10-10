@@ -70,12 +70,12 @@ describe("tests", () => {
     const { rootObject, wrapper } = setupTest();
     expect(await wrapper.asyncThisFunc()).toBe(wrapper);
   });
-  it(`non awaited asyncThisFunc() returns PromiseWrapper`, async () => {
+  it(`non awaited asyncThisFunc() returns ResultProxy`, async () => {
     const { rootObject, wrapper } = setupTest();
     const actual = wrapper.asyncThisFunc();
     expect(actual["__brand"]).toBe("ResultProxy");
   });
-  it(`non awaited asyncThisFunc().hello returns PromiseWrapper`, async () => {
+  it(`non awaited asyncThisFunc().hello returns ResultProxy`, async () => {
     const { rootObject, wrapper } = setupTest();
     const actual = wrapper.asyncThisFunc().hello;
     expect(actual["__brand"]).toBe("ResultProxy");
@@ -89,6 +89,17 @@ describe("tests", () => {
     const { rootObject, wrapper } = setupTest();
     const actual = await wrapper.asyncThisFunc().hello;    
     expect(actual).not.toHaveProperty('then');
+  });
+  it(`non awaited asyncThisFunc().asyncThisFunc returns ResultProxy`, async () => {
+    const { rootObject, wrapper } = setupTest();
+    const actual = wrapper.asyncThisFunc().asyncThisFunc;
+    expect(actual["__brand"]).toBe("ResultProxy");
+  });
+  it(`non awaited asyncThisFunc().asyncThisFunc() returns ResultProxy`, async () => {
+    const { rootObject, wrapper } = setupTest();
+    const step = wrapper.asyncThisFunc();
+    const actual = step.asyncThisFunc();
+    expect(actual["__brand"]).toBe("ResultProxy");
   });
   it(`awaited asyncThisFunc().asyncThisFunc() returns wrapper`, async () => {
     const { rootObject, wrapper } = setupTest();
