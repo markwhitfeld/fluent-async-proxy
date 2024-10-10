@@ -6,12 +6,7 @@ import {
   PromisedFunc,
   AsyncWrapped,
 } from "./fluent-async.types";
-import {
-  RootObject,
-  WrapperType,
-  rootObject,
-  wrapper,
-} from "../test/basic.test";
+
 
 export function getProxiedFunc<T extends AnyFunc>(
   originalFn: T
@@ -46,29 +41,20 @@ function createPromisedFunc<TFunc extends AnyFunc>(
     const result2 = result.then((val) => {
       // typeof originalFn === 'function'
       const originalFn = val;
-      /* return unWrap(thisRef).then((target) => {
-        const innerResult: TReturn = Reflect.apply(originalFn, target, args);
-        return innerResult;
-      });*/
       return thisRef.then((ref) => {
         const target = unWrap(ref);
         const innerResult: TReturn = Reflect.apply(originalFn, target, args);
         return innerResult;
       });
-      const target = unWrap(thisRef);
-      const innerResult: TReturn = Reflect.apply(originalFn, target, args);
-      return innerResult;
     });
-    return createFluentPromise(
-      result2 as unknown as Promise<Wrapped<RootObject>>
-    );
+    return createFluentPromise(result2);
   }
   return Object.assign(
     proxiedFunc as unknown as PromisedFunc<TFunc>,
     wrappedResult
   );
 }
-export function createFluentPromise<T extends WrapperType>(
+export function createFluentPromise<T extends object>(
   result: Promise<T>
 ): FluentPromise<T> {
   // const wrappedResult = new Promise<T>((resolve, reject) => result.then((val) => resolve(wrap(val))).catch(reject));
@@ -116,10 +102,9 @@ function createStringPromise<T extends string>(
     resultProxy
   ) as unknown as FluentPromise<T>;
 }
-const wrapMap = new WeakMap();
-wrapMap.set(rootObject, wrapper);
-const unWrapMap = new WeakMap();
-unWrapMap.set(wrapper, rootObject);
+export const wrapMap = new WeakMap();
+export const unWrapMap = new WeakMap();
+
 export function wrap<T extends object>(value: T): Wrapped<T> {
   const existing = wrapMap.get(value);
   if (existing) {

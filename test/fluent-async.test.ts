@@ -1,15 +1,14 @@
-import httpjs from '../httpJS/test-httpjs.umd.cjs';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { FluentPromise, Wrapped } from '../src/fluent-async.types';
-import { getProxiedFunc, unWrap, wrap, createFluentPromise } from '../src/fluent-async';
+import { getProxiedFunc, unWrap, wrap, createFluentPromise, wrapMap, unWrapMap } from '../src/fluent-async';
 
-export interface RootObject {
+interface RootObject {
   hello: string;
   thisFunc(): RootObject;
   asyncThisFunc(): Promise<RootObject>;
 }
 
-export const rootObject: RootObject = {
+const rootObject: RootObject = {
   hello: 'world',
   thisFunc() {
     return this;
@@ -32,7 +31,7 @@ export const rootObject: RootObject = {
 };
 
 
-export const wrapper: WrapperType = {
+const wrapper: WrapperType = {
   get hello() {
     return rootObject.hello;
   },
@@ -106,8 +105,10 @@ export const wrapper: WrapperType = {
   },
 };
 
-export type WrapperType = Wrapped<RootObject>;
+type WrapperType = Wrapped<RootObject>;
 
+wrapMap.set(rootObject, wrapper);
+unWrapMap.set(wrapper, rootObject);
 
 describe('tests', () => {
   it(`thisFunc() returns wrapper`, async () => {
