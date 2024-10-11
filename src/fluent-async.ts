@@ -81,7 +81,10 @@ function get<T extends object, Key extends keyof T>(
   if (result instanceof Promise) {
     return createFluentPromise(result as Promise<T[Key]>);
   }
-  // if it is not a promise then we can return the value (wrapped if object | proxfunc if function, not if string | number | boolean)
+  // if it is not a promise then we can return the value:
+  //  - wrapped if object
+  //  - proxied function if function
+  //  - not wrapped if string | number | boolean | undefined | null
   if (result instanceof Function) {
     return getProxiedFunc(result as AnyFunc);
   }
