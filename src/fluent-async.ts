@@ -58,7 +58,7 @@ function getPromisedFunc<TFunc extends AnyFunc>(
   );
 }
 
-export function createFluentPromise<T>(result: Promise<T>): FluentPromise<T> {  
+export function createFluentPromise<T>(result: Promise<T>): FluentPromise<T> {
   const wrappedResult = result.then((val) => wrap(val as object));
   return createAsyncProxy(
     result as Promise<object>,
@@ -66,7 +66,7 @@ export function createFluentPromise<T>(result: Promise<T>): FluentPromise<T> {
   ) as FluentPromise<T>;
 }
 
-export function get<T extends object, Key extends keyof T>(
+function get<T extends object, Key extends keyof T>(
   target: T | Promise<T>,
   p: Key,
   receiver: any
@@ -91,38 +91,57 @@ export function get<T extends object, Key extends keyof T>(
   return result;
 }
 
+interface ProxyContext<T> {
+  result: T | Promise<T>;
+  wrappedResult?: Promise<Wrapped<T>>;
+  promiseFns?: {
+    then: any;
+    catch: any;
+    finally: any;
+  };
+}
+
+const proxyHandler: ProxyHandler<() => ProxyContext<object>> = {
+  get(target, p, receiver) {
+    const context = target();
+    if (p === "__brand") return "ResultProxy";
+    if (p === "then" || p === "catch" || p === "finally") {
+      if (context.promiseFns) return context.promiseFns[p];
+    }
+    return get(context.result, p as keyof object, receiver);
+  },
+  apply(target, thisArg, argArray) {
+    const context = target();
+    // We now know that this async property is being used as a function,
+    //  so we can create the function proxy.
+    const promisedFunc = getPromisedFunc(context.result as Promise<AnyFunc>);
+    return Reflect.apply(promisedFunc, thisArg, argArray);
+  },
+  getPrototypeOf(target) {
+    const context = target();
+    return Reflect.getPrototypeOf(context.result);
+  },
+};
+
 function createAsyncProxy<T extends object>(
   result: T | Promise<T>,
-  wrappedResult?: Promise<object>
+  wrappedResult?: Promise<Wrapped<T>>
 ) {
-  const wrappedPromiseFns = wrappedResult && {
+  // The target must be a function to allow for execution of a lazy function
+  // See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy/Proxy/apply#invariants
+  const proxyTarget = () =>
+    ({
+      result,
+      wrappedResult,
+      promiseFns: wrappedResult && {
         then: wrappedResult.then.bind(wrappedResult),
         catch: wrappedResult.catch.bind(wrappedResult),
         finally: wrappedResult.finally.bind(wrappedResult),
-      };
-  const proxyTarget = () => ({
-    result,
-    wrappedPromiseFns,
-  });
-  // The target must be a function to allow for execution of a lazy function
-  // See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy/Proxy/apply#invariants
-  const proxy = new Proxy(proxyTarget, {
-    get(target, p, receiver) {
-      if (p === "__brand") return "ResultProxy";
-      if (wrappedPromiseFns && (p === "then" || p === "catch" || p === "finally")) {
-        return wrappedPromiseFns[p];
-      }
-      return get(result, p, receiver);
-    },
-    apply(target, thisArg, argArray) {
-      // We now know that this async property is being used as a function,
-      //  so we can create the function proxy.
-      const promisedFunc = getPromisedFunc(result as Promise<AnyFunc>);
-      return Reflect.apply(promisedFunc, thisArg, argArray);
-    },
-  }) as unknown as FluentPromise<T>;
-  wrappedResult && Object.setPrototypeOf(proxy, wrappedResult);
-  return proxy;
+      },
+    } as ProxyContext<T>);
+
+  const proxy = new Proxy(proxyTarget, proxyHandler);
+  return proxy as unknown as FluentPromise<T>;
 }
 
 export const wrapMap = new WeakMap();
