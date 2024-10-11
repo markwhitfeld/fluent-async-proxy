@@ -15,14 +15,13 @@ function createProxiedFunc<T extends AnyFunc | Promise<AnyFunc>>(
   function proxiedFunc() {
     const thisRef = this;
     const args = arguments;
-    const result = withValue(fn, (val) => {
-      const originalFn = val;
-      return withValue(thisRef, (ref) =>
+    const result = withValue(fn, (originalFn) =>
+      withValue(thisRef, (ref) =>
         withValue(unWrap(ref), (target) => {
           return Reflect.apply(originalFn, target, args);
         })
-      );
-    });
+      )
+    );
     if (result instanceof Promise) {
       return createFluentPromise(result);
     }
