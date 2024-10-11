@@ -27,7 +27,7 @@ function createProxiedFunc<T extends AnyFunc | Promise<AnyFunc>>(
     }
     return wrap(result);
   }
-  proxiedFunc[UNWRAP_SYMBOL] = fn;
+  proxiedFunc[UNWRAP_ASYNC_PROXY] = fn;
   return proxiedFunc as unknown as WrappedFunc<Promised<T>>;
 }
 
@@ -50,13 +50,9 @@ function getPromisedFunc<TFunc extends AnyFunc>(
   if (existing) {
     return existing;
   }
-  const wrappedResult = result.then((val) => wrap(val));
   const proxiedFunc = createProxiedFunc(result);
   wrapMap.set(result, proxiedFunc);
-  return Object.assign(
-    proxiedFunc as unknown as PromisedFunc<TFunc>,
-    wrappedResult
-  );
+  return proxiedFunc as unknown as PromisedFunc<TFunc>;
 }
 
 export function createFluentPromise<T>(result: Promise<T>): FluentPromise<T> {
@@ -95,20 +91,34 @@ function get<T extends object, Key extends keyof T>(
   return result;
 }
 
+interface PromiseFns<T> {
+  then: Promise<T>['then'];
+  catch: Promise<T>['catch'];
+  finally: Promise<T>['finally'];
+}
+
+function bindPromiseFns<T extends object>(
+  wrappedResult: Promise<Wrapped<T>> | undefined
+): PromiseFns<Wrapped<T>> | undefined {
+  return (
+    wrappedResult && {
+      then: wrappedResult.then.bind(wrappedResult),
+      catch: wrappedResult.catch.bind(wrappedResult),
+      finally: wrappedResult.finally.bind(wrappedResult),
+    }
+  );
+}
+
 interface ProxyContext<T> {
   result: T | Promise<T>;
   wrappedResult?: Promise<Wrapped<T>>;
-  promiseFns?: {
-    then: any;
-    catch: any;
-    finally: any;
-  };
+  promiseFns?: PromiseFns<Wrapped<T>>;
 }
 
 const proxyHandler: ProxyHandler<() => ProxyContext<object>> = {
   get(target, p, receiver) {
     const context = target();
-    if (p === UNWRAP_SYMBOL) return context.result;
+    if (p === UNWRAP_ASYNC_PROXY) return context.result;
     if (p === "__brand") return "ResultProxy";
     if (p === "then" || p === "catch" || p === "finally") {
       if (context.promiseFns) return context.promiseFns[p];
@@ -138,11 +148,7 @@ function createAsyncProxy<T extends object>(
     ({
       result,
       wrappedResult,
-      promiseFns: wrappedResult && {
-        then: wrappedResult.then.bind(wrappedResult),
-        catch: wrappedResult.catch.bind(wrappedResult),
-        finally: wrappedResult.finally.bind(wrappedResult),
-      },
+      promiseFns: bindPromiseFns<T>(wrappedResult),
     } as ProxyContext<T>);
 
   const proxy = new Proxy(proxyTarget, proxyHandler);
@@ -164,8 +170,8 @@ export function wrap<T extends object>(value: T): Wrapped<T> {
   return proxy;
 }
 
-const UNWRAP_SYMBOL = Symbol.for("unwrap async proxy");
+const UNWRAP_ASYNC_PROXY = Symbol.for("unwrap async proxy");
 
 export function unWrap<T extends object>(value: Wrapped<T>): Promise<T> {
-  return value[UNWRAP_SYMBOL] || (value as Promise<T>);
+  return value[UNWRAP_ASYNC_PROXY] || (value as Promise<T>);
 }

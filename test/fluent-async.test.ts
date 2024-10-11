@@ -205,6 +205,11 @@ describe("tests", () => {
       const actual = await wrapper.asyncChildFunc().getRoot();
       expect(actual).toBe(wrapper);
     });
+    it(`.asyncGetRoot [awaited] returns proxied function`, async () => {
+      const { rootObject, wrapper } = setupTest();
+      const actual = await wrapper.asyncChildFunc().asyncGetRoot;
+      expect((actual as any).name).toEqual("asyncGetRoot");
+    });
     it(`.asyncGetRoot() [not awaited] returns ResultProxy`, async () => {
       const { rootObject, wrapper } = setupTest();
       const actual = wrapper.asyncChildFunc().asyncGetRoot();
