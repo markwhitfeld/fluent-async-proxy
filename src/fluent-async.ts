@@ -17,16 +17,18 @@ function createProxiedFunc<T extends AnyFunc | Promise<AnyFunc>>(
     const args = arguments;
     const result = withValue(fn, (val) => {
       const originalFn = val;
-      return withValue(thisRef, (ref) => {
-        const target = unWrap(ref);
-        return Reflect.apply(originalFn, target, args);
-      });
+      return withValue(thisRef, (ref) =>
+        withValue(unWrap(ref), (target) => {
+          return Reflect.apply(originalFn, target, args);
+        })
+      );
     });
     if (result instanceof Promise) {
       return createFluentPromise(result);
     }
     return wrap(result);
   }
+  proxiedFunc[UNWRAP_SYMBOL] = fn;
   return proxiedFunc as unknown as WrappedFunc<Promised<T>>;
 }
 
@@ -107,6 +109,7 @@ interface ProxyContext<T> {
 const proxyHandler: ProxyHandler<() => ProxyContext<object>> = {
   get(target, p, receiver) {
     const context = target();
+    if (p === UNWRAP_SYMBOL) return context.result;
     if (p === "__brand") return "ResultProxy";
     if (p === "then" || p === "catch" || p === "finally") {
       if (context.promiseFns) return context.promiseFns[p];
@@ -148,7 +151,6 @@ function createAsyncProxy<T extends object>(
 }
 
 export const wrapMap = new WeakMap();
-export const unWrapMap = new WeakMap();
 
 export function wrap<T extends object>(value: T): Wrapped<T> {
   if (typeof value !== "object") {
@@ -160,15 +162,11 @@ export function wrap<T extends object>(value: T): Wrapped<T> {
   }
   const proxy = createAsyncProxy(value) as Wrapped<T>;
   wrapMap.set(value, proxy);
-  unWrapMap.set(proxy, value);
   return proxy;
 }
 
+const UNWRAP_SYMBOL = Symbol.for("unwrap async proxy");
+
 export function unWrap<T extends object>(value: Wrapped<T>): Promise<T> {
-  const existing = unWrapMap.get(value);
-  if (existing) {
-    return existing;
-  }
-  console.dir(value);
-  throw new Error("implement general unwrapper");
+  return value[UNWRAP_SYMBOL] || (value as Promise<T>);
 }

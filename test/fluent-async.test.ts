@@ -1,13 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { FluentPromise, Wrapped } from "../src/fluent-async.types";
-import {
-  getProxiedFunc,
-  unWrap,
-  wrap,
-  createFluentPromise,
-  wrapMap,
-  unWrapMap,
-} from "../src/fluent-async";
+import { wrap } from "../src/fluent-async";
 
 interface RootObject {
   __brand: "RootObject";
@@ -210,7 +202,7 @@ describe("tests", () => {
     });
     it(`.getRoot() [awaited] returns wrapper`, async () => {
       const { rootObject, wrapper } = setupTest();
-      const actual = await wrapper.asyncChildFunc().getRoot();      
+      const actual = await wrapper.asyncChildFunc().getRoot();
       expect(actual).toBe(wrapper);
     });
     it(`.asyncGetRoot() [not awaited] returns ResultProxy`, async () => {
