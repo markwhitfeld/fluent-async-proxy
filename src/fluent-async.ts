@@ -58,21 +58,21 @@ function getPromisedFunc<TFunc extends AnyFunc>(
   );
 }
 
-export function createFluentPromise<T>( /// TBD address this removal: extends object>(
-  result: Promise<T>
-): FluentPromise<T> {
+export function createFluentPromise<T>(result: Promise<T>): FluentPromise<T> {  
   const wrappedResult = result.then((val) => wrap(val as object));
-  return createAsyncProxy(result as Promise<object>, wrappedResult)  as FluentPromise<T>;
+  return createAsyncProxy(
+    result as Promise<object>,
+    wrappedResult
+  ) as FluentPromise<T>;
 }
 
-
-export function get<T extends object, Key extends keyof T>(target: T | Promise<T>, p: Key, receiver: any): any {  
+export function get<T extends object, Key extends keyof T>(
+  target: T | Promise<T>,
+  p: Key,
+  receiver: any
+): any {
   const result = withValue(target, (ref) => {
-    const thisRef = ref; // TBD? unWrap(ref);
-    // if (typeof thisRef !== "object") {
-    //   console.log("get", p, thisRef);
-    //   throw new Error("not an object: " + thisRef + ' ' + String(p));      
-    // }
+    const thisRef = ref;
     return Reflect.get(thisRef as T, p, thisRef);
   });
   // if it is a promise then we need a proxy
@@ -88,113 +88,58 @@ export function get<T extends object, Key extends keyof T>(target: T | Promise<T
   if (result instanceof Object) {
     return wrap(result);
   }
-  return result;  
+  return result;
 }
 
-function createAsyncProxy<T extends object>(result: T | Promise<T>, wrappedResult?: Promise<object>) {
-  const proxyTarget = () => result;
+function createAsyncProxy<T extends object>(
+  result: T | Promise<T>,
+  wrappedResult?: Promise<object>
+) {
+  const wrappedPromiseFns = wrappedResult && {
+        then: wrappedResult.then.bind(wrappedResult),
+        catch: wrappedResult.catch.bind(wrappedResult),
+        finally: wrappedResult.finally.bind(wrappedResult),
+      };
+  const proxyTarget = () => ({
+    result,
+    wrappedPromiseFns,
+  });
   // The target must be a function to allow for execution of a lazy function
   // See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy/Proxy/apply#invariants
-  const proxy = new Proxy( proxyTarget, {
+  const proxy = new Proxy(proxyTarget, {
     get(target, p, receiver) {
-      console.log("get", p);
-      if (p === '__brand') return "ResultProxy";
-      if (p === 'then' && wrappedResult) {
-        return wrappedResult.then.bind(wrappedResult);
+      if (p === "__brand") return "ResultProxy";
+      if (wrappedPromiseFns && (p === "then" || p === "catch" || p === "finally")) {
+        return wrappedPromiseFns[p];
       }
       return get(result, p, receiver);
     },
     apply(target, thisArg, argArray) {
-      console.log("apply");
+      // We now know that this async property is being used as a function,
+      //  so we can create the function proxy.
       const promisedFunc = getPromisedFunc(result as Promise<AnyFunc>);
-      wrapMap.set (result, promisedFunc);
       return Reflect.apply(promisedFunc, thisArg, argArray);
     },
-    getPrototypeOf(target) {
-      console.log("getPrototypeOf");
-      return Reflect.getPrototypeOf(result);
-    },
-    ownKeys(target) {
-      console.log("ownKeys");
-      return Reflect.ownKeys(result);
-    },
-    construct(target, argArray, newTarget) {
-      console.log("construct");
-      return Reflect.construct(result, argArray, newTarget);
-    },
-    has(target, p) {
-      console.log("has");
-      return Reflect.has(result, p);
-    },
-    preventExtensions(target) {
-      console.log("preventExtensions");
-      return Reflect.preventExtensions(result);
-    },
-    getOwnPropertyDescriptor(target, p) {
-      console.log("getOwnPropertyDescriptor");
-      return Reflect.getOwnPropertyDescriptor(result, p);
-    },
-
-
   }) as unknown as FluentPromise<T>;
-  
   wrappedResult && Object.setPrototypeOf(proxy, wrappedResult);
   return proxy;
 }
 
-function createStringPromise<T extends string>(
-  result: Promise<T>
-): FluentPromise<T> {
-  // const wrappedResult = new Promise<T>((resolve, reject) => result.then((val) => resolve(wrap(val))).catch(reject));
-  const wrappedResult = result.then((val) => val);
-  const resultProxy = {};
-  return Object.assign(
-    wrappedResult,
-    resultProxy
-  ) as unknown as FluentPromise<T>;
-}
 export const wrapMap = new WeakMap();
 export const unWrapMap = new WeakMap();
 
-function wrapRootObject<T extends object>(rootObject: T) {
-  const wrapper = {
-    get hello() {
-      return rootObject['hello'];
-    },
-    get thisFunc() {
-      const originalFn = Reflect.get(rootObject, 'thisFunc', this);
-      return getProxiedFunc(originalFn as any);    
-    },
-    get asyncThisFunc() {
-      const originalFn = Reflect.get(rootObject, 'asyncThisFunc', this);
-      return getProxiedFunc(originalFn as any);    
-    },
-  };
-  wrapMap.set(rootObject, wrapper);
-  unWrapMap.set(wrapper, rootObject);
-  return wrapper;
-}
-
-
 export function wrap<T extends object>(value: T): Wrapped<T> {
-  if (typeof value !== 'object') {
+  if (typeof value !== "object") {
     return value as Wrapped<T>;
   }
   const existing = wrapMap.get(value);
   if (existing) {
     return existing;
   }
-  if (value && value['__brand'] === 'RootObject') {
-    // return wrapRootObject(value) as Wrapped<T>;
-  }
-  console.log("wrap", value);
-  
   const proxy = createAsyncProxy(value) as Wrapped<T>;
   wrapMap.set(value, proxy);
   unWrapMap.set(proxy, value);
   return proxy;
-  console.dir(value);
-  throw new Error("implement general wrapper for " + value);
 }
 
 export function unWrap<T extends object>(value: Wrapped<T>): Promise<T> {
